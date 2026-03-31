@@ -16,7 +16,6 @@ const {
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
-  Browsers,
 } = require('@whiskeysockets/baileys');
 
 const pino  = require('pino');
@@ -80,7 +79,7 @@ async function startBot() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger)
     },
-    browser: Browsers.ubuntu('DitzBot'),
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
     markOnlineOnConnect: true,
     syncFullHistory: false,
     getMessage: async () => {
