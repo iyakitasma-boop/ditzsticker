@@ -1,0 +1,24 @@
+{
+  "name": "ditzbot",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot by Ditzbot - Sticker Maker",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "sharp": "^0.33.4",
+    "jimp": "^0.22.12",
+    "qrcode-terminal": "^0.12.0",
+    "pino": "^9.3.2",
+    "node-cache": "^5.1.2",
+    "axios": "^1.7.2",
+    "form-data": "^4.0.0",
+    "chalk": "^4.1.2"
+  },
+  "keywords": ["whatsapp", "bot", "sticker"],
+  "author": "Ditzbot",
+  "license": "MIT"
+}
