@@ -10,6 +10,12 @@
 
 'use strict';
 
+// Fix untuk Node v16 — crypto harus di-define manual
+const crypto = require('crypto');
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = crypto.webcrypto || crypto;
+}
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
