@@ -16,10 +16,6 @@ const {
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
-  isJidBroadcast,
-  makeInMemoryStore,
-  jidNormalizedUser,
-  PHONENUMBER_MCC
 } = require('@whiskeysockets/baileys');
 
 const pino  = require('pino');
@@ -32,9 +28,6 @@ const { makeSticker } = require('./lib/sticker');
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
 const logger = pino({ level: 'silent' });
-
-// ─── Store ────────────────────────────────────────────────────────────────────
-const store = makeInMemoryStore({ logger });
 
 // ─── Print Banner ─────────────────────────────────────────────────────────────
 function printBanner() {
@@ -89,16 +82,10 @@ async function startBot() {
     browser: ['DitzBot', 'Chrome', '1.0.0'],
     markOnlineOnConnect: true,
     syncFullHistory: false,
-    getMessage: async (key) => {
-      if (store) {
-        const msg = await store.loadMessage(key.remoteJid, key.id);
-        return msg?.message || undefined;
-      }
+    getMessage: async () => {
       return { conversation: 'Ditzbot is running!' };
     }
   });
-
-  store.bind(sock.ev);
 
   // ─── Pairing Code Login ─────────────────────────────────────────────────────
   if (!sock.authState.creds.registered) {
