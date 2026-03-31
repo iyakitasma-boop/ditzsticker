@@ -16,6 +16,7 @@ const {
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
+  Browsers,
 } = require('@whiskeysockets/baileys');
 
 const pino  = require('pino');
@@ -79,7 +80,7 @@ async function startBot() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger)
     },
-    browser: ['DitzBot', 'Chrome', '1.0.0'],
+    browser: Browsers.ubuntu('DitzBot'),
     markOnlineOnConnect: true,
     syncFullHistory: false,
     getMessage: async () => {
@@ -97,7 +98,7 @@ async function startBot() {
     }
 
     console.log(chalk.yellow('\n⏳ Meminta Pairing Code...'));
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 1500));
 
     try {
       const code = await sock.requestPairingCode(phoneNumber);
