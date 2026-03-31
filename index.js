@@ -157,108 +157,105 @@ async function startBot() {
 // ─── Message Handler Logic ────────────────────────────────────────────────────
 async function handleMessage(sock, msg) {
   if (!msg.message) return;
-  if (msg.key.fromMe) return; // abaikan pesan dari bot sendiri
+  if (msg.key.fromMe) return;
 
-  const from    = msg.key.remoteJid;
-  const isGroup = from.endsWith('@g.us');
+  const from     = msg.key.remoteJid;
   const pushName = msg.pushName || 'User';
 
-  // Ambil semua tipe pesan
-  const msgType = Object.keys(msg.message)[0];
+  // Unwrap pesan yang dibungkus ephemeral/viewOnce
+  const msgContent =
+    msg.message?.ephemeralMessage?.message ||
+    msg.message?.viewOnceMessage?.message ||
+    msg.message?.viewOnceMessageV2?.message ||
+    msg.message;
 
-  // Deteksi caption atau text
+  const msgType = Object.keys(msgContent)[0];
+
+  // Ambil body teks dari semua kemungkinan tipe
   const bodyText =
-    msg.message?.conversation ||
-    msg.message?.imageMessage?.caption ||
-    msg.message?.videoMessage?.caption ||
-    msg.message?.extendedTextMessage?.text ||
-    msg.message?.documentMessage?.caption ||
+    msgContent?.conversation ||
+    msgContent?.imageMessage?.caption ||
+    msgContent?.videoMessage?.caption ||
+    msgContent?.extendedTextMessage?.text ||
+    msgContent?.documentMessage?.caption ||
     '';
 
-  const body = bodyText.toLowerCase().trim();
+  const body = bodyText.trim().toLowerCase();
 
-  // ─── Cek command .ditzsticker ────────────────────────────────────────────────
-  const isSticker = body === '.ditzsticker' || body.startsWith('.ditzsticker');
+  // Log setiap pesan masuk untuk debug
+  console.log(chalk.gray(`[MSG] ${pushName} | type: ${msgType} | body: "${body.slice(0,50)}"`));
 
-  if (!isSticker) return; // abaikan jika bukan command sticker
+  // Cek command
+  if (body !== '.ditzsticker' && !body.startsWith('.ditzsticker')) return;
 
-  console.log(chalk.cyan(`\n📩 [STICKER REQUEST] dari ${pushName} (${from})`));
+  console.log(chalk.cyan(`\n📩 [STICKER REQUEST] dari ${pushName}`));
 
-  // ─── Ambil media: bisa dari quoted atau langsung ───────────────────────────
-  let mediaMsg = null;
+  // ─── Tentukan sumber media ────────────────────────────────────────────────
   let mediaType = null;
+  let isQuoted  = false;
 
-  // Cek apakah ada pesan yang di-reply
-  const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-  if (quotedMsg) {
-    if (quotedMsg.imageMessage) {
-      mediaMsg  = quotedMsg.imageMessage;
+  // CARA 1: Pesan langsung berisi foto/video dengan caption .ditzsticker
+  if (msgType === 'imageMessage') {
+    mediaType = 'imageMessage';
+    isQuoted  = false;
+    console.log(chalk.blue('📸 Mode: foto langsung'));
+  } else if (msgType === 'videoMessage') {
+    mediaType = 'videoMessage';
+    isQuoted  = false;
+    console.log(chalk.blue('🎥 Mode: video langsung'));
+  }
+  // CARA 2: Reply teks ".ditzsticker" ke foto/video orang lain
+  else if (msgType === 'extendedTextMessage') {
+    const quoted = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
+    if (quoted?.imageMessage) {
       mediaType = 'imageMessage';
-    } else if (quotedMsg.videoMessage) {
-      mediaMsg  = quotedMsg.videoMessage;
+      isQuoted  = true;
+      console.log(chalk.blue('📸 Mode: reply foto'));
+    } else if (quoted?.videoMessage) {
       mediaType = 'videoMessage';
-    } else if (quotedMsg.stickerMessage) {
-      // Kalau reply sticker, beritahu tidak bisa
+      isQuoted  = true;
+      console.log(chalk.blue('🎥 Mode: reply video'));
+    } else if (quoted?.stickerMessage) {
       return sock.sendMessage(from, {
-        text: '❌ Tidak bisa mengubah sticker menjadi sticker lagi!\n\nKirim atau reply *foto/video* dengan caption *.ditzsticker*'
+        text: '❌ Tidak bisa mengubah sticker jadi sticker!\nKirim atau reply *foto/video* dengan *.ditzsticker*'
       }, { quoted: msg });
+    } else {
+      console.log(chalk.yellow('⚠️  Reply bukan ke foto/video, quoted type:'), quoted ? Object.keys(quoted)[0] : 'null');
     }
   }
 
-  // Jika tidak ada quoted, cek apakah pesan langsung mengandung gambar/video
-  if (!mediaMsg) {
-    if (msgType === 'imageMessage') {
-      mediaMsg  = msg.message.imageMessage;
-      mediaType = 'imageMessage';
-    } else if (msgType === 'videoMessage') {
-      mediaMsg  = msg.message.videoMessage;
-      mediaType = 'videoMessage';
-    }
-  }
-
-  if (!mediaMsg) {
+  if (!mediaType) {
     return sock.sendMessage(from, {
       text: `❌ *Cara Pakai .ditzsticker:*\n\n` +
-            `1️⃣  Kirim foto dengan caption *.ditzsticker*\n` +
-            `2️⃣  Reply foto orang lain dengan *.ditzsticker*\n\n` +
-            `📌 Dukung: Foto & Video (max 10 detik)\n` +
-            `🤖 *DitzBot* - by Ditzbot`
+            `1️⃣  Kirim *foto* + caption *.ditzsticker*\n` +
+            `2️⃣  *Reply* foto orang lain ketik *.ditzsticker*\n\n` +
+            `🤖 *DitzBot* by Ditzbot`
     }, { quoted: msg });
   }
 
-  // Kirim pesan tunggu
+  // Kirim notif tunggu
   await sock.sendMessage(from, {
-    text: '⏳ Sedang membuat sticker... Tunggu sebentar ya! 🎨'
+    text: '⏳ Sedang bikin sticker... 🎨'
   }, { quoted: msg });
 
   try {
-    const stickerBuffer = await makeSticker(sock, msg, mediaMsg, mediaType, {
-      packName : 'DitzBot Sticker',
+    const stickerBuffer = await makeSticker(sock, msg, msgContent, mediaType, {
+      packName  : 'DitzBot Sticker',
       authorName: 'Ditzbot',
       categories: ['🎭']
     });
 
-    if (!stickerBuffer) {
-      return sock.sendMessage(from, {
-        text: '❌ Gagal membuat sticker! File mungkin terlalu besar atau format tidak didukung.'
-      }, { quoted: msg });
+    if (!stickerBuffer || stickerBuffer.length === 0) {
+      throw new Error('Buffer sticker kosong');
     }
 
-    await sock.sendMessage(from, {
-      sticker: stickerBuffer
-    }, { quoted: msg });
-
-    console.log(chalk.green(`✅ Sticker berhasil dikirim ke ${pushName}`));
+    await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: msg });
+    console.log(chalk.green(`✅ Sticker terkirim ke ${pushName} (${stickerBuffer.length} bytes)`));
 
   } catch (err) {
-    console.error(chalk.red('❌ Error membuat sticker:'), err.message);
+    console.error(chalk.red('❌ Gagal buat sticker:'), err.message);
     await sock.sendMessage(from, {
-      text: '❌ Terjadi error saat membuat sticker!\n\n' +
-            '🔧 Kemungkinan penyebab:\n' +
-            '• File terlalu besar\n' +
-            '• Format tidak didukung\n' +
-            '• Koneksi bermasalah\n\n' +
-            'Coba lagi dengan foto yang lebih kecil ya!'
+      text: `❌ Gagal buat sticker!\nError: ${err.message}`
     }, { quoted: msg });
   }
 }
